@@ -1,7 +1,7 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { api } from '@/lib/api-config'; // Import thư ký
 
-// 1. Định nghĩa lại kiểu dữ liệu User
 export interface User {
   id: string;
   email: string;
@@ -15,8 +15,8 @@ interface AuthContextType {
   token: string | null;
   userRole: 'admin' | 'student' | null;
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string, studentId?: string) => Promise<{ error: any }>;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
+  signUp: (data: any) => Promise<{ error: any }>;
+  signIn: (data: any) => Promise<{ error: any }>;
   signOut: () => void;
 }
 
@@ -25,15 +25,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   
-  // 2. Khởi tạo State từ LocalStorage
+  // Khởi tạo State từ LocalStorage
   const [user, setUser] = useState<User | null>(() => {
     const savedUser = localStorage.getItem('user');
     return savedUser ? JSON.parse(savedUser) : null;
   });
   
-  const [token, setToken] = useState<string | null>(() => {
-    return localStorage.getItem('token');
-  });
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
 
   const [userRole, setUserRole] = useState<'admin' | 'student' | null>(() => {
     const savedUser = localStorage.getItem('user');
@@ -42,43 +40,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const [loading, setLoading] = useState(false);
 
-  // 3. Hàm Đăng ký (Gọi API Node.js)
-  const signUp = async (email: string, password: string, fullName: string, studentId?: string) => {
+  // Hàm Đăng ký (Gọn gàng)
+  const signUp = async (formData: any) => {
     try {
-      const response = await fetch("http://localhost:5000/api/auth/register", {
+      await api("/api/auth/register", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, fullName, studentId }),
+        body: JSON.stringify(formData),
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        return { error: { message: data.error || "Đăng ký thất bại" } };
-      }
-
       return { error: null };
-    } catch (err) {
-      return { error: { message: "Lỗi kết nối server" } };
+    } catch (err: any) {
+      return { error: { message: err.message } };
     }
   };
 
-  // 4. Hàm Đăng nhập (Gọi API Node.js)
-  const signIn = async (email: string, password: string) => {
+  // Hàm Đăng nhập (Gọn gàng)
+  const signIn = async (formData: any) => {
     try {
-      const response = await fetch("http://localhost:5000/api/auth/login", {
+      const data = await api("/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(formData),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        return { error: { message: data.error || "Đăng nhập thất bại" } };
-      }
-
-      // Lưu thông tin vào LocalStorage và State
+      // Lưu thông tin
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
 
@@ -87,15 +70,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUserRole(data.user.role);
 
       return { error: null };
-    } catch (err) {
-      return { error: { message: "Lỗi kết nối server" } };
+    } catch (err: any) {
+      return { error: { message: err.message } };
     }
   };
 
-  // 5. Hàm Đăng xuất
   const signOut = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    localStorage.clear(); // Xóa sạch mọi thứ
     setUser(null);
     setToken(null);
     setUserRole(null);
@@ -111,8 +92,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (context === undefined) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 }
