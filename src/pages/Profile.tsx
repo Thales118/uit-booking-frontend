@@ -6,12 +6,12 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, User, Mail, Calendar, Phone, Lock, Key } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { api } from "@/lib/api-config";
 
 const Profile = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   
-  // State cho thông tin cá nhân
   const [profile, setProfile] = useState({
     full_name: "",
     email: "",
@@ -19,7 +19,6 @@ const Profile = () => {
     phone: ""
   });
 
-  // State cho đổi mật khẩu
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
     newPassword: "",
@@ -33,14 +32,7 @@ const Profile = () => {
 
   const fetchProfile = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch("http://localhost:5000/api/profile", {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-
-      if (!response.ok) throw new Error("Không thể tải thông tin");
-
-      const data = await response.json();
+      const data = await api("/api/profile");
       setProfile({
         full_name: data.full_name || "",
         email: data.email || "",
@@ -56,20 +48,13 @@ const Profile = () => {
 
   const handleUpdateProfile = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch("http://localhost:5000/api/profile", {
+      await api("/api/profile", {
         method: "PATCH",
-        headers: { 
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
         body: JSON.stringify({
           full_name: profile.full_name,
           phone: profile.phone
         })
       });
-
-      if (!response.ok) throw new Error("Cập nhật thất bại");
       toast.success("Thành công", { description: "Thông tin đã được cập nhật" });
     } catch (error: any) {
       toast.error("Thất bại", { description: error.message });
@@ -77,7 +62,6 @@ const Profile = () => {
   };
 
   const handleChangePassword = async () => {
-    // Validate cơ bản
     if (!passwordData.currentPassword || !passwordData.newPassword) {
       toast.error("Vui lòng nhập đầy đủ thông tin");
       return;
@@ -93,25 +77,15 @@ const Profile = () => {
 
     setPasswordLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch("http://localhost:5000/api/auth/change-password", {
+      await api("/api/auth/change-password", {
         method: "POST",
-        headers: { 
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
         body: JSON.stringify({
           currentPassword: passwordData.currentPassword,
           newPassword: passwordData.newPassword
         })
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Đổi mật khẩu thất bại");
-
       toast.success("Thành công", { description: "Mật khẩu đã được thay đổi" });
-      
-      // Reset form
       setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
     } catch (error: any) {
       toast.error("Thất bại", { description: error.message });
@@ -122,17 +96,20 @@ const Profile = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-10">
-      <header className="bg-white border-b sticky top-0 z-50 px-4 py-4 shadow-sm">
+    // FIX: Thêm dark:bg-gray-900 để nền chuyển màu tối
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-10 transition-colors duration-300">
+      
+      {/* FIX: Header dark mode */}
+      <header className="bg-white dark:bg-gray-800 dark:border-gray-700 border-b sticky top-0 z-50 px-4 py-4 shadow-sm">
         <div className="container mx-auto">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
+          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="dark:text-gray-200 hover:dark:bg-gray-700">
             <ArrowLeft className="h-4 w-4 mr-2" /> Quay lại Dashboard
           </Button>
         </div>
@@ -140,52 +117,53 @@ const Profile = () => {
 
       <div className="container mx-auto px-4 py-8 max-w-2xl space-y-8">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Hồ sơ cá nhân</h1>
-          <p className="text-muted-foreground text-lg">Quản lý thông tin và bảo mật</p>
+          {/* FIX: Màu chữ tiêu đề */}
+          <h1 className="text-3xl font-bold mb-2 text-gray-900 dark:text-white">Hồ sơ cá nhân</h1>
+          <p className="text-muted-foreground text-lg dark:text-gray-400">Quản lý thông tin và bảo mật</p>
         </div>
 
         {/* 1. THẺ THÔNG TIN CÁ NHÂN */}
-        <Card>
+        <Card className="dark:bg-gray-800 dark:border-gray-700">
           <CardHeader>
-            <CardTitle>Thông tin chung</CardTitle>
-            <CardDescription>Cập nhật họ tên và số điện thoại</CardDescription>
+            <CardTitle className="dark:text-white">Thông tin chung</CardTitle>
+            <CardDescription className="dark:text-gray-400">Cập nhật họ tên và số điện thoại</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Họ và tên</Label>
+              <Label className="dark:text-gray-300">Họ và tên</Label>
               <div className="relative">
                 <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input 
                   value={profile.full_name} 
                   onChange={(e) => setProfile({...profile, full_name: e.target.value})}
-                  className="pl-10" 
+                  className="pl-10 dark:bg-gray-900 dark:border-gray-600 dark:text-white" 
                 />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Email</Label>
+                <Label className="dark:text-gray-300">Email</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input value={profile.email} disabled className="pl-10 bg-gray-100" />
+                  <Input value={profile.email} disabled className="pl-10 bg-gray-100 dark:bg-gray-900/50 dark:border-gray-700 dark:text-gray-400" />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>MSSV</Label>
+                <Label className="dark:text-gray-300">MSSV</Label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input value={profile.student_id} disabled className="pl-10 bg-gray-100" />
+                  <Input value={profile.student_id} disabled className="pl-10 bg-gray-100 dark:bg-gray-900/50 dark:border-gray-700 dark:text-gray-400" />
                 </div>
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Số điện thoại</Label>
+              <Label className="dark:text-gray-300">Số điện thoại</Label>
               <div className="relative">
                 <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   value={profile.phone}
                   onChange={(e) => setProfile({...profile, phone: e.target.value})}
-                  className="pl-10"
+                  className="pl-10 dark:bg-gray-900 dark:border-gray-600 dark:text-white"
                 />
               </div>
             </div>
@@ -194,44 +172,45 @@ const Profile = () => {
         </Card>
 
         {/* 2. THẺ ĐỔI MẬT KHẨU */}
-        <Card>
+        <Card className="dark:bg-gray-800 dark:border-gray-700">
           <CardHeader>
             <CardTitle className="text-red-600 flex items-center gap-2">
               <Lock className="h-5 w-5" /> Bảo mật
             </CardTitle>
-            <CardDescription>Đổi mật khẩu định kỳ để bảo vệ tài khoản</CardDescription>
+            <CardDescription className="dark:text-gray-400">Đổi mật khẩu định kỳ để bảo vệ tài khoản</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Mật khẩu hiện tại</Label>
+              <Label className="dark:text-gray-300">Mật khẩu hiện tại</Label>
               <Input 
                 type="password" 
                 placeholder="••••••"
                 value={passwordData.currentPassword}
                 onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
+                className="dark:bg-gray-900 dark:border-gray-600 dark:text-white"
               />
             </div>
             <div className="space-y-2">
-              <Label>Mật khẩu mới</Label>
+              <Label className="dark:text-gray-300">Mật khẩu mới</Label>
               <div className="relative">
                 <Key className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input 
                   type="password" 
                   placeholder="••••••"
-                  className="pl-10"
+                  className="pl-10 dark:bg-gray-900 dark:border-gray-600 dark:text-white"
                   value={passwordData.newPassword}
                   onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Xác nhận mật khẩu mới</Label>
+              <Label className="dark:text-gray-300">Xác nhận mật khẩu mới</Label>
               <div className="relative">
                 <Key className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input 
                   type="password" 
                   placeholder="••••••"
-                  className="pl-10"
+                  className="pl-10 dark:bg-gray-900 dark:border-gray-600 dark:text-white"
                   value={passwordData.confirmPassword}
                   onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
                 />
@@ -239,7 +218,7 @@ const Profile = () => {
             </div>
             <Button 
               variant="outline" 
-              className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+              className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:bg-red-950/20 dark:hover:bg-red-900/40"
               onClick={handleChangePassword}
               disabled={passwordLoading}
             >

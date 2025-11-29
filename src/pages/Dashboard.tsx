@@ -1,11 +1,14 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Clock, MapPin, Bell, ArrowRight, Plus, LogOut, User, Settings, CheckCircle2, Timer, Search } from "lucide-react";
+import { Calendar, Clock, MapPin, Bell, ArrowRight, Plus, LogOut, User, Settings, CheckCircle2, Timer, Search, CalendarDays } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { format, isAfter, isToday, parseISO, differenceInHours, differenceInMinutes, isFuture } from "date-fns";
 import { toast } from "sonner";
+import { api } from "@/lib/api-config";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ModeToggle } from "@/components/mode-toggle"; // Đảm bảo đã import cái này
 
 interface Booking {
   id: string;
@@ -38,7 +41,7 @@ const Dashboard = () => {
   const [notification, setNotification] = useState<NotificationState>({
     title: "",
     message: "",
-    type: "default" // Mặc định là hiện thẻ "Cần phòng gấp"
+    type: "default"
   });
 
   useEffect(() => {
@@ -47,21 +50,14 @@ const Dashboard = () => {
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch("http://localhost:5000/api/bookings", {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      
-      if (!response.ok) throw new Error();
-      const data: Booking[] = await response.json();
-      
+      const data: Booking[] = await api("/api/bookings");
       setBookings(data);
       calculateStats(data);
       generateSmartNotification(data);
     } catch (error) {
       toast.error("Không thể tải dữ liệu Dashboard");
     } finally {
-      setLoading(false);
+      setTimeout(() => setLoading(false), 500);
     }
   };
 
@@ -84,7 +80,6 @@ const Dashboard = () => {
     setStats({ total, favoriteRoom, totalHours });
   };
 
-  // --- LOGIC THÔNG BÁO THÔNG MINH ---
   const generateSmartNotification = (data: Booking[]) => {
     const now = new Date();
     const futureBookings = data
@@ -97,7 +92,6 @@ const Dashboard = () => {
       const diffHours = differenceInHours(nearest.startDateTime, now);
       const diffMinutes = differenceInMinutes(nearest.startDateTime, now);
 
-      // 1. Sắp đến giờ (trong vòng 24h) -> Cảnh báo
       if (nearest.status === 'approved' && diffHours < 24) {
         setNotification({
           title: diffMinutes < 60 ? "Sắp đến giờ!" : "Nhắc nhở lịch hẹn",
@@ -107,7 +101,6 @@ const Dashboard = () => {
         return;
       }
 
-      // 2. Vừa được duyệt (ví dụ) -> Thông báo vui
       if (nearest.status === 'approved') {
         setNotification({
           title: "Đã được duyệt",
@@ -117,8 +110,6 @@ const Dashboard = () => {
         return;
       }
     }
-    
-    // Nếu không có gì đặc biệt -> Giữ type "default" để hiện thẻ "Cần phòng gấp"
     setNotification({ title: "", message: "", type: "default" });
   };
 
@@ -130,71 +121,124 @@ const Dashboard = () => {
     })
     .slice(0, 3);
 
+  // Skeleton Loading
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>;
+    return (
+      <div className="min-h-screen bg-gray-50/50 dark:bg-gray-900 p-4 md:p-8">
+        <div className="flex justify-between mb-8">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-[200px]" />
+            <Skeleton className="h-4 w-[150px]" />
+          </div>
+          <Skeleton className="h-10 w-[120px]" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-3 mb-8">
+          <Skeleton className="h-[120px] rounded-xl" />
+          <Skeleton className="h-[120px] rounded-xl" />
+          <Skeleton className="h-[120px] rounded-xl" />
+        </div>
+        <div className="grid gap-6 md:grid-cols-7">
+          <Skeleton className="md:col-span-4 lg:col-span-5 h-[300px] rounded-xl" />
+          <div className="md:col-span-3 lg:col-span-2 space-y-6">
+            <Skeleton className="h-[150px] rounded-xl" />
+            <Skeleton className="h-[100px] rounded-xl" />
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  // Cấu hình màu sắc cho thẻ thông báo
+  // Styles thông báo
   const getNotificationStyles = () => {
     switch (notification.type) {
       case "success": return { icon: <CheckCircle2 className="w-5 h-5" />, bg: "bg-gradient-to-br from-green-500 to-emerald-600" };
       case "warning": return { icon: <Timer className="w-5 h-5" />, bg: "bg-gradient-to-br from-orange-500 to-red-500" };
-      default: return { icon: <Bell className="w-5 h-5" />, bg: "bg-blue-600" }; // Màu xanh chuẩn của nút "Cần phòng gấp"
+      default: return { icon: <Bell className="w-5 h-5" />, bg: "bg-blue-600 dark:bg-blue-700" };
     }
   };
   const notiStyle = getNotificationStyles();
 
   return (
-    <div className="min-h-screen bg-gray-50/50 p-4 md:p-8">
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+    // THÊM: dark:bg-gray-900 cho nền tổng
+    <div className="min-h-screen bg-gray-50/50 dark:bg-gray-900 p-4 md:p-8 transition-colors duration-300">
+      
+      {/* 1. HEADER (Đã fix lỗi lặp icon và màu sắc) */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Dashboard</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Dashboard</h1>
           <p className="text-muted-foreground text-sm">Xin chào, <span className="font-semibold text-primary">{user?.full_name}</span>!</p>
         </div>
         
         <div className="flex items-center gap-2 w-full md:w-auto">
+          {/* Nút Admin */}
           {userRole === 'admin' && (
-             <Button variant="outline" size="sm" className="hidden md:flex" onClick={() => navigate("/admin")}>
+             <Button variant="outline" size="sm" className="hidden md:flex dark:border-gray-600 dark:text-gray-200" onClick={() => navigate("/admin")}>
                 <Settings className="w-4 h-4 mr-2" /> Admin
              </Button>
           )}
-          <Button variant="ghost" size="icon" onClick={() => navigate("/profile")} title="Thông tin cá nhân">
-            <User className="w-5 h-5 text-gray-600" />
+          
+          {/* Nút Đổi giao diện (ModeToggle) */}
+          <ModeToggle />
+
+          {/* Nút Profile */}
+          <Button variant="ghost" size="icon" onClick={() => navigate("/profile")} title="Thông tin cá nhân" className="dark:text-gray-200 hover:dark:bg-gray-700">
+            <User className="w-5 h-5" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={handleLogout} title="Đăng xuất">
+
+          {/* Nút Logout */}
+          <Button variant="ghost" size="icon" onClick={handleLogout} title="Đăng xuất" className="hover:dark:bg-gray-700">
             <LogOut className="w-5 h-5 text-red-500" />
           </Button>
-          <Button className="bg-blue-600 hover:bg-blue-700 ml-2" onClick={() => navigate("/booking")}>
+
+          {/* Nút Đặt phòng */}
+          <Button className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:text-white ml-2" onClick={() => navigate("/booking")}>
             <Plus className="w-4 h-4 mr-2" /> <span className="hidden md:inline">Đặt phòng mới</span><span className="md:hidden">Đặt mới</span>
           </Button>
         </div>
       </div>
 
-      {/* STATS CARDS */}
+      {/* 2. STATS CARDS (Đã fix màu chữ dark mode) */}
       <div className="grid gap-4 md:grid-cols-3 mb-8">
-        <StatCard title="Tổng lượt đặt" value={stats.total} subtext="Tích cực hoạt động" icon={<Calendar className="w-5 h-5 text-blue-600" />} bg="bg-blue-50" />
-        <StatCard title="Phòng yêu thích" value={stats.favoriteRoom} subtext="Hay sử dụng nhất" icon={<MapPin className="w-5 h-5 text-orange-600" />} bg="bg-orange-50" />
-        <StatCard title="Thời gian sử dụng" value={`${stats.totalHours} giờ`} subtext="Ước tính tổng cộng" icon={<Clock className="w-5 h-5 text-green-600" />} bg="bg-green-50" />
+        <StatCard 
+          title="Tổng lượt đặt" value={stats.total} subtext="Tích cực hoạt động" 
+          icon={<Calendar className="w-5 h-5 text-blue-600 dark:text-blue-400" />} 
+          bg="bg-blue-50 dark:bg-blue-900/20"
+        />
+        <StatCard 
+          title="Phòng yêu thích" value={stats.favoriteRoom} subtext="Hay sử dụng nhất" 
+          icon={<MapPin className="w-5 h-5 text-orange-600 dark:text-orange-400" />} 
+          bg="bg-orange-50 dark:bg-orange-900/20"
+        />
+        <StatCard 
+          title="Thời gian sử dụng" value={`${stats.totalHours} giờ`} subtext="Ước tính tổng cộng" 
+          icon={<Clock className="w-5 h-5 text-green-600 dark:text-green-400" />} 
+          bg="bg-green-50 dark:bg-green-900/20"
+        />
       </div>
 
-      {/* MAIN CONTENT */}
+      {/* 3. MAIN CONTENT */}
       <div className="grid gap-6 md:grid-cols-7">
         
-        {/* CỘT TRÁI: Lịch sắp tới */}
-        <Card className="md:col-span-4 lg:col-span-5 shadow-sm border-gray-100 h-fit">
+        {/* LỊCH SẮP TỚI */}
+        <Card className="md:col-span-4 lg:col-span-5 shadow-sm border-gray-100 dark:border-gray-700 dark:bg-gray-800 h-fit">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-lg font-bold">Lịch trình sắp tới</CardTitle>
-            <Button variant="ghost" size="sm" className="text-blue-600" onClick={() => navigate("/my-bookings")}>
+            <CardTitle className="text-lg font-bold text-gray-900 dark:text-white">Lịch trình sắp tới</CardTitle>
+            <Button variant="ghost" size="sm" className="text-blue-600 dark:text-blue-400 hover:dark:bg-gray-700" onClick={() => navigate("/my-bookings")}>
               Xem lịch sử <ArrowRight className="w-4 h-4 ml-1" />
             </Button>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {upcomingBookings.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground bg-gray-50 rounded-lg border border-dashed">
-                  <p>Bạn không có lịch đặt phòng nào sắp tới.</p>
-                  <Button variant="link" onClick={() => navigate("/booking")}>Đặt ngay</Button>
+                <div className="flex flex-col items-center justify-center py-10 text-center bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-dashed border-gray-200 dark:border-gray-700">
+                  <div className="bg-white dark:bg-gray-700 p-3 rounded-full shadow-sm mb-3">
+                    <CalendarDays className="w-8 h-8 text-gray-400 dark:text-gray-300" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Lịch trống trơn!</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 max-w-[200px] mb-4 mt-1">
+                    Bạn chưa có lịch đặt phòng nào sắp diễn ra.
+                  </p>
+                  <Button variant="outline" size="sm" onClick={() => navigate("/booking")} className="dark:border-gray-600 dark:text-gray-200">Đặt phòng ngay</Button>
                 </div>
               ) : (
                 upcomingBookings.map((booking) => (
@@ -205,27 +249,22 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        {/* CỘT PHẢI: 2 CARD (Thông báo + Hoạt động) */}
+        {/* SIDEBAR RIGHT */}
         <div className="md:col-span-3 lg:col-span-2 space-y-6">
-           
-           {/* CARD 1: Thông báo Hoặc Cần phòng gấp */}
            <Card className={`${notiStyle.bg} text-white border-none shadow-lg transition-all duration-500`}>
              <CardContent className="p-6">
                <div className="mb-4 bg-white/20 w-10 h-10 rounded-lg flex items-center justify-center">
                  {notiStyle.icon}
                </div>
-               
                {notification.type === 'default' ? (
-                 /* Layout Mặc định: "Cần phòng gấp?" giống ảnh */
                  <>
                    <h3 className="font-bold text-lg mb-1">Cần phòng gấp?</h3>
-                   <p className="text-blue-100 text-sm mb-4">Hệ thống check trùng lịch thông minh giúp bạn tìm phòng trống ngay lập tức.</p>
+                   <p className="text-blue-100 text-sm mb-4">Tìm phòng trống ngay lập tức.</p>
                    <Button variant="secondary" className="w-full text-blue-700 font-semibold hover:bg-white" onClick={() => navigate("/booking")}>
                      <Search className="w-4 h-4 mr-2" /> Tìm phòng trống
                    </Button>
                  </>
                ) : (
-                 /* Layout Thông báo: Khi có sự kiện quan trọng */
                  <>
                    <h3 className="font-bold text-lg mb-1">{notification.title}</h3>
                    <p className="text-white/90 text-sm">{notification.message}</p>
@@ -234,38 +273,36 @@ const Dashboard = () => {
              </CardContent>
            </Card>
            
-           {/* CARD 2: Hoạt động gần đây (Đã khôi phục) */}
-           <Card className="border-gray-100 shadow-sm">
-             <CardHeader className="pb-3"><CardTitle className="text-base">Hoạt động gần đây</CardTitle></CardHeader>
+           <Card className="border-gray-100 dark:border-gray-700 dark:bg-gray-800 shadow-sm">
+             <CardHeader className="pb-3"><CardTitle className="text-base text-gray-900 dark:text-white">Hoạt động gần đây</CardTitle></CardHeader>
              <CardContent className="space-y-4">
                <div className="flex gap-3 items-start">
                  <div className="w-2 h-2 mt-2 bg-green-500 rounded-full flex-shrink-0" />
-                 <p className="text-sm text-gray-600">Hệ thống đã ghi nhận <span className="font-medium text-gray-900">{stats.total}</span> lượt đặt phòng của bạn.</p>
+                 <p className="text-sm text-gray-600 dark:text-gray-300">Hệ thống đã ghi nhận <span className="font-medium text-gray-900 dark:text-white">{stats.total}</span> lượt đặt phòng của bạn.</p>
                </div>
                <div className="flex gap-3 items-start">
                  <div className="w-2 h-2 mt-2 bg-blue-500 rounded-full flex-shrink-0" />
-                 <p className="text-sm text-gray-600">Đừng quên check-in QR code khi đến phòng nhé!</p>
+                 <p className="text-sm text-gray-600 dark:text-gray-300">Đừng quên check-in QR code khi đến phòng nhé!</p>
                </div>
              </CardContent>
            </Card>
-
         </div>
       </div>
     </div>
   );
 }
 
-// --- SUB COMPONENTS ---
+// --- SUB COMPONENTS (Đã fix dark mode) ---
 function StatCard({ title, value, subtext, icon, bg }: any) {
   return (
-    <Card className="hover:shadow-md transition-all border-gray-100">
+    <Card className="hover:shadow-md transition-all border-gray-100 dark:border-gray-700 dark:bg-gray-800">
       <CardContent className="p-6">
         <div className="flex items-center justify-between mb-4">
           <div className={`p-3 rounded-xl ${bg}`}>{icon}</div>
         </div>
         <div>
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <h3 className="text-2xl font-bold mt-1 text-gray-900">{value}</h3>
+          <h3 className="text-2xl font-bold mt-1 text-gray-900 dark:text-white">{value}</h3>
           <p className="text-xs text-muted-foreground mt-1">{subtext}</p>
         </div>
       </CardContent>
@@ -275,18 +312,20 @@ function StatCard({ title, value, subtext, icon, bg }: any) {
 
 function BookingItem({ booking }: { booking: Booking }) {
     const isApproved = booking.status === 'approved';
-    const statusColor = isApproved ? 'bg-green-100 text-green-700 border-green-200' : 'bg-yellow-100 text-yellow-700 border-yellow-200';
+    const statusColor = isApproved 
+      ? 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' 
+      : 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800';
     const statusText = isApproved ? 'Đã duyệt' : 'Đang chờ';
     
     return (
-        <div className="flex items-center justify-between p-4 border rounded-xl hover:bg-gray-50 transition-colors bg-white group">
+        <div className="flex items-center justify-between p-4 border rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors bg-white dark:bg-gray-800 dark:border-gray-700 group">
             <div className="flex items-center gap-4">
-                <div className="flex flex-col items-center justify-center w-14 h-14 bg-blue-50 rounded-lg text-blue-700 font-bold border border-blue-100 group-hover:bg-blue-100 transition-colors">
+                <div className="flex flex-col items-center justify-center w-14 h-14 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-700 dark:text-blue-400 font-bold border border-blue-100 dark:border-blue-900 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30 transition-colors">
                     <span className="text-xs uppercase">{format(parseISO(booking.booking_date), "MMM")}</span>
                     <span className="text-xl">{format(parseISO(booking.booking_date), "dd")}</span>
                 </div>
                 <div>
-                    <h4 className="font-semibold text-gray-900 text-base">{booking.room.name}</h4>
+                    <h4 className="font-semibold text-gray-900 dark:text-white text-base">{booking.room.name}</h4>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
                         <Clock className="w-3 h-3" />
                         <span>{booking.slot_start.slice(0,5)} - {booking.slot_end.slice(0,5)}</span>

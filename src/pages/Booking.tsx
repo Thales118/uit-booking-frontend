@@ -9,7 +9,8 @@ import { Calendar as CalendarIcon, MapPin, Users, Clock, ArrowLeft, CheckCircle2
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { api } from "@/lib/api-config"; // Import thư ký
+import { useAuth } from "@/hooks/useAuth";
+import { api } from "@/lib/api-config";
 
 interface Room {
   id: string;
@@ -21,6 +22,7 @@ interface Room {
 
 const Booking = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [date, setDate] = useState<Date>();
   const [selectedRoom, setSelectedRoom] = useState("");
   const [selectedSlot, setSelectedSlot] = useState("");
@@ -41,11 +43,10 @@ const Booking = () => {
   useEffect(() => {
     const fetchRooms = async () => {
       try {
-        // Dùng api() thay fetch()
         const data = await api("/api/rooms");
         setRooms(data || []);
       } catch (error: any) {
-        toast.error("Lỗi tải danh sách phòng", { description: error.message });
+        toast.error("Không thể tải danh sách phòng", { description: error.message });
       } finally {
         setLoading(false);
       }
@@ -56,7 +57,14 @@ const Booking = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRoom || !date || !selectedSlot || !purpose) {
-      toast.error("Vui lòng điền đủ thông tin");
+      toast.error("Vui lòng điền đầy đủ thông tin");
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast.error("Vui lòng đăng nhập lại");
+      navigate("/auth");
       return;
     }
 
@@ -65,7 +73,6 @@ const Booking = () => {
       const slot = timeSlots.find(s => s.id === selectedSlot);
       if (!slot) throw new Error("Khung giờ không hợp lệ");
 
-      // Dùng api() gọi POST cực gọn
       await api("/api/bookings", {
         method: "POST",
         body: JSON.stringify({
@@ -87,21 +94,22 @@ const Booking = () => {
     }
   };
 
-  if (loading) return <div className="h-screen flex items-center justify-center">Loading...</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
-  // ... (Phần return JSX giữ nguyên như phiên bản UI đẹp lúc nãy)
-  // Bạn có thể copy lại phần JSX từ file Booking.tsx cũ (bản UI đẹp) dán vào đây
-  // Hoặc nếu bạn muốn tôi gửi lại cả cục JSX thì bảo tôi nhé.
   return (
-    // ... [Phần giao diện giữ nguyên code cũ] ...
-    // Để tiết kiệm không gian chat, tôi không paste lại đoạn JSX dài dòng ở đây.
-    // Bạn hãy giữ nguyên phần return (...) từ file Booking.tsx đẹp lúc nãy nhé!
-    <div className="min-h-screen bg-gray-50 pb-10">
-       {/* ... Copy lại phần giao diện từ file Booking.tsx trước đó ... */}
-       {/* Nếu bạn lỡ xóa rồi thì bảo tôi gửi lại */}
-       <header className="bg-white border-b sticky top-0 z-50 px-4 py-4 shadow-sm">
+    // FIX: Thêm dark:bg-gray-900 để nền tối
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-10 transition-colors duration-300">
+      
+      {/* Header */}
+      <header className="bg-white dark:bg-gray-800 dark:border-gray-700 border-b sticky top-0 z-50 px-4 py-4 shadow-sm">
         <div className="container mx-auto max-w-5xl">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="hover:bg-gray-100">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-200">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Quay lại Dashboard
           </Button>
@@ -110,28 +118,33 @@ const Booking = () => {
 
       <div className="container mx-auto px-4 py-8 max-w-5xl">
         <div className="mb-8 animate-fade-in">
-          <h1 className="text-3xl font-bold mb-2 text-gray-900">Đặt phòng mới</h1>
-          <p className="text-muted-foreground text-lg">Chọn không gian phù hợp nhất cho nhu cầu của bạn</p>
+          <h1 className="text-3xl font-bold mb-2 text-gray-900 dark:text-white">Đặt phòng mới</h1>
+          <p className="text-muted-foreground text-lg dark:text-gray-400">Chọn không gian phù hợp nhất cho nhu cầu của bạn</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
+          
           {/* 1. SECTION CHỌN PHÒNG */}
           <section className="space-y-4">
             <div className="flex items-center gap-2 mb-4">
-              <div className="bg-blue-100 p-2 rounded-lg"><MapPin className="h-5 w-5 text-blue-600" /></div>
-              <h2 className="text-xl font-semibold">Bước 1: Chọn phòng</h2>
+              <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
+                <MapPin className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <h2 className="text-xl font-semibold dark:text-white">Bước 1: Chọn phòng</h2>
             </div>
+            
             <div className="grid md:grid-cols-2 gap-5">
               {rooms.map((room) => (
                 <div
                   key={room.id}
                   onClick={() => setSelectedRoom(room.id)}
-                  className={`group relative overflow-hidden rounded-xl border-2 cursor-pointer transition-all duration-300 bg-white shadow-sm hover:shadow-md ${
+                  className={`group relative overflow-hidden rounded-xl border-2 cursor-pointer transition-all duration-300 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md ${
                     selectedRoom === room.id
-                      ? "border-blue-600 ring-2 ring-blue-600 ring-offset-2"
-                      : "border-transparent hover:border-blue-200"
+                      ? "border-blue-600 ring-2 ring-blue-600 ring-offset-2 dark:ring-offset-gray-900"
+                      : "border-transparent hover:border-blue-200 dark:hover:border-blue-800"
                   }`}
                 >
+                  {/* Ảnh phòng */}
                   <div className="aspect-video w-full overflow-hidden relative">
                     <img 
                       src={room.image_url || "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&q=80"} 
@@ -143,19 +156,26 @@ const Booking = () => {
                     <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent transition-opacity duration-300 ${
                         selectedRoom === room.id ? "opacity-90" : "opacity-60 group-hover:opacity-80"
                     }`} />
+                    
                     <div className="absolute top-3 right-3">
-                      <span className="bg-white/90 backdrop-blur-sm text-xs font-bold px-2 py-1 rounded text-gray-800 uppercase tracking-wide">
+                      <span className="bg-white/90 dark:bg-black/80 backdrop-blur-sm text-xs font-bold px-2 py-1 rounded text-gray-800 dark:text-white uppercase tracking-wide">
                         {room.type}
                       </span>
                     </div>
                   </div>
+
+                  {/* Thông tin phòng */}
                   <div className="absolute bottom-0 left-0 p-4 w-full text-white">
                     <div className="flex justify-between items-end">
                       <div>
                         <h4 className="text-xl font-bold mb-1 group-hover:text-blue-200 transition-colors">{room.name}</h4>
                         <div className="flex items-center gap-4 text-sm text-gray-200">
-                          <span className="flex items-center gap-1.5"><Users className="h-4 w-4" /> {room.capacity} chỗ</span>
-                          <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4" /> Cơ sở chính</span>
+                          <span className="flex items-center gap-1.5">
+                            <Users className="h-4 w-4" /> {room.capacity} chỗ
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            <MapPin className="h-4 w-4" /> Cơ sở chính
+                          </span>
                         </div>
                       </div>
                       {selectedRoom === room.id && (
@@ -174,16 +194,19 @@ const Booking = () => {
             {/* 2. SECTION CHỌN NGÀY & GIỜ */}
             <section className="space-y-4">
               <div className="flex items-center gap-2 mb-4">
-                <div className="bg-orange-100 p-2 rounded-lg"><CalendarIcon className="h-5 w-5 text-orange-600" /></div>
-                <h2 className="text-xl font-semibold">Bước 2: Thời gian</h2>
+                <div className="bg-orange-100 dark:bg-orange-900/30 p-2 rounded-lg">
+                  <CalendarIcon className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                </div>
+                <h2 className="text-xl font-semibold dark:text-white">Bước 2: Thời gian</h2>
               </div>
+
               <Card className="border-none shadow-none bg-transparent">
                 <CardContent className="p-0 space-y-6">
                   <div className="space-y-2">
-                    <Label>Ngày sử dụng</Label>
+                    <Label className="dark:text-gray-300">Ngày sử dụng</Label>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start text-left font-normal h-12 text-base border-gray-300">
+                        <Button variant="outline" className="w-full justify-start text-left font-normal h-12 text-base border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
                           <CalendarIcon className="mr-2 h-4 w-4" />
                           {date ? format(date, "dd/MM/yyyy") : "Chọn ngày"}
                         </Button>
@@ -195,20 +218,26 @@ const Booking = () => {
                           onSelect={setDate}
                           initialFocus
                           disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                          className="dark:bg-gray-800 dark:text-white dark:border-gray-700"
                         />
                       </PopoverContent>
                     </Popover>
                   </div>
+
                   <div className="space-y-2">
-                    <Label>Khung giờ</Label>
+                    <Label className="dark:text-gray-300">Khung giờ</Label>
                     <div className="grid grid-cols-2 gap-3">
                       {timeSlots.map((slot) => (
                         <div
                           key={slot.id}
                           onClick={() => setSelectedSlot(slot.id)}
-                          className={`relative px-4 py-3 rounded-lg text-sm font-medium cursor-pointer text-center transition-all duration-200 border ${
-                            selectedSlot === slot.id ? "bg-blue-600 text-white border-blue-600 shadow-md transform scale-105" : "bg-white border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50"
-                          }`}
+                          className={`
+                            relative px-4 py-3 rounded-lg text-sm font-medium cursor-pointer text-center transition-all duration-200 border
+                            ${selectedSlot === slot.id
+                              ? "bg-blue-600 text-white border-blue-600 shadow-md transform scale-105"
+                              : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-blue-300 dark:hover:border-blue-600 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                            }
+                          `}
                         >
                           {slot.time}
                           {selectedSlot === slot.id && (
@@ -225,24 +254,44 @@ const Booking = () => {
             {/* 3. SECTION CHI TIẾT */}
             <section className="space-y-4">
               <div className="flex items-center gap-2 mb-4">
-                <div className="bg-green-100 p-2 rounded-lg"><Clock className="h-5 w-5 text-green-600" /></div>
-                <h2 className="text-xl font-semibold">Bước 3: Chi tiết</h2>
+                <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg">
+                  <Clock className="h-5 w-5 text-green-600 dark:text-green-400" />
+                </div>
+                <h2 className="text-xl font-semibold dark:text-white">Bước 3: Chi tiết</h2>
               </div>
-              <Card className="border-gray-200 shadow-sm">
+
+              <Card className="border-gray-200 dark:border-gray-700 shadow-sm dark:bg-gray-800">
                 <CardContent className="pt-6 space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="purpose">Mục đích sử dụng *</Label>
-                    <Input id="purpose" placeholder="VD: Học nhóm, họp CLB..." className="h-12 text-base" value={purpose} onChange={(e) => setPurpose(e.target.value)} required />
+                    <Label htmlFor="purpose" className="dark:text-gray-300">Mục đích sử dụng *</Label>
+                    <Input 
+                      id="purpose" 
+                      placeholder="VD: Học nhóm, họp CLB..." 
+                      className="h-12 text-base dark:bg-gray-900 dark:border-gray-600 dark:text-white" 
+                      value={purpose} 
+                      onChange={(e) => setPurpose(e.target.value)} 
+                      required 
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="note">Ghi chú (tùy chọn)</Label>
-                    <Input id="note" placeholder="Số lượng người, thiết bị cần..." className="h-12 text-base" value={note} onChange={(e) => setNote(e.target.value)} />
+                    <Label htmlFor="note" className="dark:text-gray-300">Ghi chú (tùy chọn)</Label>
+                    <Input 
+                      id="note" 
+                      placeholder="Số lượng người, thiết bị cần..." 
+                      className="h-12 text-base dark:bg-gray-900 dark:border-gray-600 dark:text-white" 
+                      value={note} 
+                      onChange={(e) => setNote(e.target.value)} 
+                    />
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Submit Buttons */}
               <div className="flex gap-4 pt-4">
-                <Button type="button" variant="outline" onClick={() => navigate("/dashboard")} className="flex-1 h-12 text-base">Hủy bỏ</Button>
-                <Button type="submit" className="flex-1 h-12 text-base bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200" disabled={submitting}>
+                <Button type="button" variant="outline" onClick={() => navigate("/dashboard")} className="flex-1 h-12 text-base dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700">
+                  Hủy bỏ
+                </Button>
+                <Button type="submit" className="flex-1 h-12 text-base bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200 dark:shadow-none" disabled={submitting}>
                   {submitting ? "Đang xử lý..." : "Xác nhận đặt phòng"}
                 </Button>
               </div>
