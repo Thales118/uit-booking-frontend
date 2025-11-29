@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,10 +22,10 @@ const Auth = () => {
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
 
-    const { error } = await signIn(email, password);
+    const { error } = await signIn({ email, password });
     
     if (error) {
-      if (error.message.includes("Invalid login credentials")) {
+      if (error.message.includes("Invalid login credentials") || error.message.includes("Sai email")) {
         toast.error("Email hoặc mật khẩu không đúng. Vui lòng kiểm tra lại.");
       } else {
         toast.error(error.message || "Đăng nhập thất bại");
@@ -49,11 +49,16 @@ const Auth = () => {
     const name = formData.get("name") as string;
     const studentId = formData.get("studentId") as string;
 
-    const { error } = await signUp(email, password, name, studentId);
+    const { error } = await signUp({ 
+      email, 
+      password, 
+      fullName: name, 
+      studentId 
+    });
     
     if (error) {
-      if (error.message.includes("User already registered")) {
-        toast.error("Email này đã được đăng ký. Vui lòng đăng nhập hoặc dùng email khác.");
+      if (error.message.includes("already registered") || error.message.includes("tồn tại")) {
+        toast.error("Email này đã được đăng ký. Vui lòng đăng nhập.");
       } else {
         toast.error(error.message || "Đăng ký thất bại");
       }
@@ -99,6 +104,7 @@ const Auth = () => {
                 <TabsTrigger value="register">Đăng ký</TabsTrigger>
               </TabsList>
 
+              {/* --- FORM ĐĂNG NHẬP --- */}
               <TabsContent value="login">
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
@@ -112,8 +118,20 @@ const Auth = () => {
                       className="h-11"
                     />
                   </div>
+                  
+                  {/* 👇 ĐOẠN ĐƯỢC THÊM NÚT QUÊN MẬT KHẨU 👇 */}
                   <div className="space-y-2">
-                    <Label htmlFor="login-password">Mật khẩu</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="login-password">Mật khẩu</Label>
+                      <Button 
+                        type="button" 
+                        variant="link" 
+                        className="px-0 text-xs text-blue-600 hover:text-blue-800 h-auto font-normal"
+                        onClick={() => window.location.href = "https://auth.uit.edu.vn/"}
+                      >
+                        Quên mật khẩu?
+                      </Button>
+                    </div>
                     <Input
                       id="login-password"
                       name="password"
@@ -123,12 +141,15 @@ const Auth = () => {
                       className="h-11"
                     />
                   </div>
+                  {/* 👆 HẾT ĐOẠN THÊM 👆 */}
+
                   <Button type="submit" className="w-full h-11" disabled={loading}>
                     {loading ? "Đang đăng nhập..." : "Đăng nhập"}
                   </Button>
                 </form>
               </TabsContent>
 
+              {/* --- FORM ĐĂNG KÝ --- */}
               <TabsContent value="register">
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div className="space-y-2">
