@@ -323,3 +323,4 @@ const BookingCard = ({ booking, onApprove, onReject, isReadOnly, processingId }:
     </CardContent>
   </Card>
 );
+export default AdminDashboard;
