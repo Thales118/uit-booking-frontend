@@ -1,162 +1,217 @@
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, MapPin, Calendar, Clock, QrCode, X } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
-import QRCode from "react-qr-code";
-import { api } from "@/lib/api-config"; // <--- QUAN TRỌNG: Import cái này
+import { vi } from "date-fns/locale";
+import { useNavigate } from "react-router-dom";
+import { Calendar, Clock, MapPin, Search, Filter, MoreVertical, AlertCircle } from "lucide-react";
+import { toast } from "sonner";
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
+import { api } from "@/lib/api-config"; // Import hàm api chuẩn
 
 interface Booking {
   id: string;
   booking_date: string;
   slot_start: string;
   slot_end: string;
-  status: string;
+  status: "pending" | "approved" | "rejected" | "cancelled" | "completed";
   purpose: string;
-  notes: string | null;
-  qr_code: string | null;
-  room: { name: string; type: string };
+  room: {
+    name: string;
+    type: string;
+  };
 }
 
 const MyBookings = () => {
   const navigate = useNavigate();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-  const [qrDialogOpen, setQrDialogOpen] = useState(false);
-  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
-  useEffect(() => {
-    fetchBookings();
-  }, []);
-
+  // Gọi API lấy danh sách
   const fetchBookings = async () => {
     try {
-      // Dùng api() thay vì fetch localhost
-      // Nó sẽ tự động dùng đường dẫn đúng nhờ file config
       const data = await api("/api/bookings");
       setBookings(data || []);
     } catch (error: any) {
-      toast.error("Không thể tải lịch sử đặt phòng");
+      toast.error("Lỗi tải dữ liệu", { description: error.message });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCancel = async (bookingId: string) => {
-    if (!confirm("Bạn có chắc chắn muốn hủy đặt phòng này?")) return;
+  useEffect(() => {
+    fetchBookings();
+  }, []);
+
+  // Xử lý hủy phòng
+  const handleCancel = async (id: string) => {
+    if (!confirm("Bạn có chắc chắn muốn hủy lịch đặt này không?")) return;
+
     try {
-      await api(`/api/bookings/${bookingId}/cancel`, { method: "PATCH" });
-      toast.success("Đã hủy đặt phòng");
-      fetchBookings();
+      await api(`/api/bookings/${id}/cancel`, { method: "PATCH" });
+      toast.success("Đã hủy lịch đặt phòng");
+      fetchBookings(); // Tải lại danh sách
     } catch (error: any) {
-      toast.error("Không thể hủy đặt phòng");
+      toast.error("Hủy thất bại", { description: error.message });
     }
   };
 
-  const showQRCode = (booking: Booking) => {
-    setSelectedBooking(booking);
-    setQrDialogOpen(true);
-  };
-  const showDetails = (booking: Booking) => {
-    setSelectedBooking(booking);
-    setDetailDialogOpen(true);
+  // Helper function để hiển thị màu trạng thái
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "approved": return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-100/80";
+      case "pending": return "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 hover:bg-yellow-100/80";
+      case "rejected": return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-100/80";
+      case "cancelled": return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400 hover:bg-gray-100/80";
+      case "completed": return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-100/80";
+      default: return "bg-gray-100 text-gray-700";
+    }
   };
 
-  const getStatusBadge = (status: string) => {
-    const config = {
-      approved: { label: "Đã duyệt", variant: "default" as const, className: "bg-green-600 hover:bg-green-700" },
-      pending: { label: "Chờ duyệt", variant: "secondary" as const, className: "bg-yellow-500 text-white hover:bg-yellow-600" },
-      rejected: { label: "Từ chối", variant: "destructive" as const, className: "" },
-      cancelled: { label: "Đã hủy", variant: "outline" as const, className: "text-gray-500" },
+  const getStatusText = (status: string) => {
+    const map: Record<string, string> = {
+      approved: "Đã duyệt",
+      pending: "Chờ duyệt",
+      rejected: "Từ chối",
+      cancelled: "Đã hủy",
+      completed: "Hoàn thành"
     };
-    // @ts-ignore
-    const s = config[status] || config.pending;
-    return <Badge variant={s.variant} className={s.className}>{s.label}</Badge>;
+    return map[status] || status;
   };
 
-  if (loading) return <div className="h-screen flex items-center justify-center">Loading...</div>;
+  // Lọc danh sách theo từ khóa
+  const filteredBookings = bookings.filter(b => 
+    b.room.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    b.purpose.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="border-b bg-white sticky top-0 z-50 shadow-sm">
-        <div className="container mx-auto px-4 py-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
-            <ArrowLeft className="h-4 w-4 mr-2" /> Quay lại Dashboard
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+      <div className="container mx-auto px-4 py-8 max-w-5xl">
+        
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Lịch sử đặt phòng</h1>
+            <p className="text-muted-foreground mt-1 dark:text-gray-400">Quản lý và theo dõi trạng thái các yêu cầu của bạn</p>
+          </div>
+          <Button onClick={() => navigate("/booking")} className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200 dark:shadow-none">
+            + Đặt phòng mới
           </Button>
         </div>
-      </header>
 
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Lịch sử đặt phòng</h1>
-          <p className="text-muted-foreground text-lg">Quản lý các đặt phòng của bạn</p>
+        {/* Thanh tìm kiếm & Bộ lọc */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6 flex gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input 
+              placeholder="Tìm kiếm theo tên phòng, mục đích..." 
+              className="pl-9 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <Button variant="outline" className="dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700">
+            <Filter className="h-4 w-4 mr-2" /> Bộ lọc
+          </Button>
         </div>
 
-        <div className="space-y-4">
-          {bookings.map((booking) => (
-            <Card key={booking.id} className="hover:shadow-md transition-all">
-              <CardContent className="p-6">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="flex items-start gap-4 flex-1">
-                    <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <MapPin className="h-6 w-6 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-semibold text-lg">{booking.room.name}</h3>
-                        {getStatusBadge(booking.status)}
+        {/* Danh sách Booking */}
+        {loading ? (
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-32 w-full rounded-xl" />
+            ))}
+          </div>
+        ) : filteredBookings.length === 0 ? (
+          <div className="text-center py-20 bg-white dark:bg-gray-800 rounded-xl border border-dashed dark:border-gray-700">
+            <div className="bg-gray-100 dark:bg-gray-900/50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="h-8 w-8 text-gray-400" />
+            </div>
+            <h3 className="text-lg font-medium dark:text-white">Chưa có lịch đặt nào</h3>
+            <p className="text-muted-foreground mb-4">Hãy tạo yêu cầu đặt phòng mới ngay bây giờ</p>
+            <Button variant="outline" onClick={() => navigate("/booking")}>Đặt phòng ngay</Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {filteredBookings.map((booking) => (
+              <Card key={booking.id} className="group overflow-hidden transition-all hover:shadow-md border-gray-200 dark:border-gray-700 dark:bg-gray-800">
+                <CardContent className="p-0">
+                  <div className="flex flex-col md:flex-row">
+                    
+                    {/* Cột trái: Thông tin chính */}
+                    <div className="p-6 flex-1">
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-bold text-lg text-gray-900 dark:text-white">{booking.room.name}</h3>
+                            <Badge variant="secondary" className="text-xs font-normal bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                              {booking.room.type}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">{booking.purpose}</p>
+                        </div>
+                        <Badge className={`${getStatusColor(booking.status)} border-0`}>
+                          {getStatusText(booking.status)}
+                        </Badge>
                       </div>
-                      <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1"><Calendar className="h-4 w-4" />{format(new Date(booking.booking_date), "dd/MM/yyyy")}</span>
-                        <span className="flex items-center gap-1"><Clock className="h-4 w-4" />{booking.slot_start.slice(0,5)} - {booking.slot_end.slice(0,5)}</span>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/50 p-2 rounded-lg">
+                          <Calendar className="h-4 w-4 text-blue-500" />
+                          <span className="font-medium">
+                            {format(new Date(booking.booking_date), "EEEE, dd/MM/yyyy", { locale: vi })}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/50 p-2 rounded-lg">
+                          <Clock className="h-4 w-4 text-orange-500" />
+                          <span>
+                            {booking.slot_start.slice(0, 5)} - {booking.slot_end.slice(0, 5)}
+                          </span>
+                        </div>
                       </div>
                     </div>
+
+                    {/* Cột phải: Hành động */}
+                    <div className="bg-gray-50 dark:bg-gray-900/30 p-4 md:w-48 flex flex-row md:flex-col justify-center items-center gap-2 border-t md:border-t-0 md:border-l border-gray-100 dark:border-gray-700">
+                      <Button variant="outline" className="w-full bg-white dark:bg-gray-800 dark:text-white dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700" size="sm">
+                        Chi tiết
+                      </Button>
+                      
+                      {booking.status === 'pending' && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20">
+                              <MoreVertical className="h-4 w-4 mr-2 md:hidden" />
+                              Hủy đặt
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleCancel(booking.id)} className="text-red-600 cursor-pointer">
+                              Xác nhận hủy
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
+
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {booking.status === "approved" && (
-                      <Button size="sm" variant="outline" onClick={() => showQRCode(booking)}><QrCode className="h-4 w-4 mr-2" />QR Code</Button>
-                    )}
-                    {booking.status === "pending" && (
-                      <Button size="sm" variant="destructive" onClick={() => handleCancel(booking.id)}><X className="h-4 w-4 mr-2" />Hủy</Button>
-                    )}
-                    <Button size="sm" variant="ghost" onClick={() => showDetails(booking)}>Chi tiết</Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-        {bookings.length === 0 && (
-          <div className="text-center py-16 bg-white rounded-lg border border-dashed">
-            <p className="text-muted-foreground mb-4">Chưa có đặt phòng nào</p>
-            <Button onClick={() => navigate("/booking")}>Đặt phòng ngay</Button>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         )}
       </div>
-
-      <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>QR Check-in</DialogTitle><DialogDescription>Đưa mã này cho quản lý</DialogDescription></DialogHeader>
-          <div className="flex justify-center p-4 bg-white rounded"><QRCode value={selectedBooking ? `http://18.138.231.216/verify/${selectedBooking.id}` : ""} size={200} /></div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <DialogContent><DialogHeader><DialogTitle>Chi tiết</DialogTitle></DialogHeader>
-          {selectedBooking && (
-            <div className="space-y-2 text-sm">
-               <p><strong>Phòng:</strong> {selectedBooking.room.name}</p>
-               <p><strong>Mục đích:</strong> {selectedBooking.purpose}</p>
-               {selectedBooking.notes && <p><strong>Ghi chú:</strong> {selectedBooking.notes}</p>}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
