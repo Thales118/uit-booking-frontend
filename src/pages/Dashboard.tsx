@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Clock, MapPin, Bell, ArrowRight, Plus, LogOut, User, Settings, CheckCircle2, Timer, Search, CalendarDays } from "lucide-react";
+import { Calendar, Clock, MapPin, Bell, ArrowRight, Plus, LogOut, User as UserIcon, Settings, CheckCircle2, Timer, Search, CalendarDays } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { format, isAfter, isToday, parseISO, differenceInHours, differenceInMinutes, isFuture } from "date-fns";
 import { toast } from "sonner";
 import { api } from "@/lib/api-config";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ModeToggle } from "@/components/mode-toggle"; // Đảm bảo đã import cái này
+import { ModeToggle } from "@/components/mode-toggle"; 
 
 interface Booking {
   id: string;
@@ -28,7 +28,10 @@ interface NotificationState {
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { user, userRole, signOut } = useAuth();
+  
+  // ✅ SỬA LẠI: Dùng signOut và userRole (theo đúng hook cũ của bạn)
+  const { user, userRole, signOut } = useAuth(); 
+  
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -51,9 +54,9 @@ const Dashboard = () => {
   const fetchData = async () => {
     try {
       const data: Booking[] = await api("/api/bookings");
-      setBookings(data);
-      calculateStats(data);
-      generateSmartNotification(data);
+      setBookings(data || []);
+      calculateStats(data || []);
+      generateSmartNotification(data || []);
     } catch (error) {
       toast.error("Không thể tải dữ liệu Dashboard");
     } finally {
@@ -62,8 +65,10 @@ const Dashboard = () => {
   };
 
   const handleLogout = () => {
+    // ✅ GỌI HÀM signOut ĐÚNG TÊN
     signOut();
     navigate("/auth");
+    toast.success("Đã đăng xuất");
   };
 
   const calculateStats = (data: Booking[]) => {
@@ -72,10 +77,12 @@ const Dashboard = () => {
     data.forEach(b => {
       roomCounts[b.room.name] = (roomCounts[b.room.name] || 0) + 1;
     });
+    
     const favoriteRoom = Object.keys(roomCounts).length > 0 
       ? Object.keys(roomCounts).reduce((a, b) => roomCounts[a] > roomCounts[b] ? a : b) 
       : "Chưa có";
 
+    // Giả sử mỗi slot là 2 tiếng
     const totalHours = total * 2; 
     setStats({ total, favoriteRoom, totalHours });
   };
@@ -109,22 +116,33 @@ const Dashboard = () => {
         });
         return;
       }
+      
+      if (nearest.status === 'pending') {
+         setNotification({
+          title: "Đang chờ duyệt",
+          message: `Yêu cầu đặt phòng ${nearest.room.name} của bạn đang được xem xét.`,
+          type: "default"
+        });
+        return;
+      }
     }
-    setNotification({ title: "", message: "", type: "default" });
+    setNotification({ title: "Chào mừng trở lại!", message: "Bạn có thể đặt phòng mới ngay bây giờ.", type: "default" });
   };
 
   const upcomingBookings = bookings
     .filter(b => {
       const bookingDate = parseISO(b.booking_date);
+      // Lấy lịch từ hôm nay trở đi và chưa bị hủy
       return (isAfter(bookingDate, new Date()) || isToday(bookingDate)) && 
              b.status !== 'cancelled' && b.status !== 'rejected';
     })
+    .sort((a, b) => new Date(a.booking_date).getTime() - new Date(b.booking_date).getTime())
     .slice(0, 3);
 
   // Skeleton Loading
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50/50 dark:bg-gray-900 p-4 md:p-8">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-8 transition-colors duration-300">
         <div className="flex justify-between mb-8">
           <div className="space-y-2">
             <Skeleton className="h-8 w-[200px]" />
@@ -159,10 +177,9 @@ const Dashboard = () => {
   const notiStyle = getNotificationStyles();
 
   return (
-    // THÊM: dark:bg-gray-900 cho nền tổng
     <div className="min-h-screen bg-gray-50/50 dark:bg-gray-900 p-4 md:p-8 transition-colors duration-300">
       
-      {/* 1. HEADER (Đã fix lỗi lặp icon và màu sắc) */}
+      {/* 1. HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Dashboard</h1>
@@ -170,10 +187,10 @@ const Dashboard = () => {
         </div>
         
         <div className="flex items-center gap-2 w-full md:w-auto">
-          {/* Nút Admin */}
+          {/* Nút Admin (Check theo userRole) */}
           {userRole === 'admin' && (
-             <Button variant="outline" size="sm" className="hidden md:flex dark:border-gray-600 dark:text-gray-200" onClick={() => navigate("/admin")}>
-                <Settings className="w-4 h-4 mr-2" /> Admin
+             <Button variant="outline" size="sm" className="hidden md:flex dark:border-gray-600 dark:text-gray-200 border-purple-200 text-purple-700 hover:bg-purple-50" onClick={() => navigate("/admin")}>
+                <Settings className="w-4 h-4 mr-2" /> Admin Panel
              </Button>
           )}
           
@@ -182,7 +199,7 @@ const Dashboard = () => {
 
           {/* Nút Profile */}
           <Button variant="ghost" size="icon" onClick={() => navigate("/profile")} title="Thông tin cá nhân" className="dark:text-gray-200 hover:dark:bg-gray-700">
-            <User className="w-5 h-5" />
+            <UserIcon className="w-5 h-5" />
           </Button>
 
           {/* Nút Logout */}
@@ -197,7 +214,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* 2. STATS CARDS (Đã fix màu chữ dark mode) */}
+      {/* 2. STATS CARDS */}
       <div className="grid gap-4 md:grid-cols-3 mb-8">
         <StatCard 
           title="Tổng lượt đặt" value={stats.total} subtext="Tích cực hoạt động" 
@@ -256,7 +273,7 @@ const Dashboard = () => {
                <div className="mb-4 bg-white/20 w-10 h-10 rounded-lg flex items-center justify-center">
                  {notiStyle.icon}
                </div>
-               {notification.type === 'default' ? (
+               {notification.type === 'default' && notification.title === "" ? (
                  <>
                    <h3 className="font-bold text-lg mb-1">Cần phòng gấp?</h3>
                    <p className="text-blue-100 text-sm mb-4">Tìm phòng trống ngay lập tức.</p>
@@ -292,7 +309,7 @@ const Dashboard = () => {
   );
 }
 
-// --- SUB COMPONENTS (Đã fix dark mode) ---
+// --- SUB COMPONENTS ---
 function StatCard({ title, value, subtext, icon, bg }: any) {
   return (
     <Card className="hover:shadow-md transition-all border-gray-100 dark:border-gray-700 dark:bg-gray-800">
@@ -312,10 +329,22 @@ function StatCard({ title, value, subtext, icon, bg }: any) {
 
 function BookingItem({ booking }: { booking: Booking }) {
     const isApproved = booking.status === 'approved';
-    const statusColor = isApproved 
-      ? 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' 
-      : 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800';
-    const statusText = isApproved ? 'Đã duyệt' : 'Đang chờ';
+    const isPending = booking.status === 'pending';
+    const isRejected = booking.status === 'rejected';
+
+    let statusColor = 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400';
+    let statusText = 'Khác';
+
+    if (isApproved) {
+        statusColor = 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800';
+        statusText = 'Đã duyệt';
+    } else if (isPending) {
+        statusColor = 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800';
+        statusText = 'Đang chờ';
+    } else if (isRejected) {
+        statusColor = 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800';
+        statusText = 'Từ chối';
+    }
     
     return (
         <div className="flex items-center justify-between p-4 border rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors bg-white dark:bg-gray-800 dark:border-gray-700 group">
