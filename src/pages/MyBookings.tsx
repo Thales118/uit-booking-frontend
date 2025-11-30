@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
-import { Calendar, Clock, MapPin, Search, Filter, MoreVertical, AlertCircle } from "lucide-react";
+import { Calendar, Clock, Search, Filter, MoreVertical, AlertCircle, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api } from "@/lib/api-config"; // Import hàm api chuẩn
+import { api } from "@/lib/api-config";
 
 interface Booking {
   id: string;
@@ -37,7 +37,6 @@ const MyBookings = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Gọi API lấy danh sách
   const fetchBookings = async () => {
     try {
       const data = await api("/api/bookings");
@@ -53,20 +52,18 @@ const MyBookings = () => {
     fetchBookings();
   }, []);
 
-  // Xử lý hủy phòng
   const handleCancel = async (id: string) => {
     if (!confirm("Bạn có chắc chắn muốn hủy lịch đặt này không?")) return;
 
     try {
       await api(`/api/bookings/${id}/cancel`, { method: "PATCH" });
       toast.success("Đã hủy lịch đặt phòng");
-      fetchBookings(); // Tải lại danh sách
+      fetchBookings();
     } catch (error: any) {
       toast.error("Hủy thất bại", { description: error.message });
     }
   };
 
-  // Helper function để hiển thị màu trạng thái
   const getStatusColor = (status: string) => {
     switch (status) {
       case "approved": return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-100/80";
@@ -89,17 +86,27 @@ const MyBookings = () => {
     return map[status] || status;
   };
 
-  // Lọc danh sách theo từ khóa
   const filteredBookings = bookings.filter(b => 
     b.room.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     b.purpose.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300 pb-10">
+      
+      {/* --- MỚI THÊM: Header có nút Quay lại Dashboard --- */}
+      <header className="bg-white dark:bg-gray-800 dark:border-gray-700 border-b sticky top-0 z-50 px-4 py-4 shadow-sm">
+        <div className="container mx-auto max-w-5xl">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-200">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Quay lại Dashboard
+          </Button>
+        </div>
+      </header>
+
       <div className="container mx-auto px-4 py-8 max-w-5xl">
         
-        {/* Header */}
+        {/* Title Section */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Lịch sử đặt phòng</h1>
