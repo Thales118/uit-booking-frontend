@@ -1,216 +1,211 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, ArrowLeft } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Calendar, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { useAuth } from "@/hooks/useAuth";
 
-const Auth = () => {
+export default function Auth() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+  // --- Login States ---
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+
+  // --- Register States ---
+  const [fullName, setFullName] = useState("");
+  const [studentId, setStudentId] = useState("");
+  const [regEmail, setRegEmail] = useState("");
+  const [regPassword, setRegPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState(""); // <--- MỚI: State cho xác nhận pass
+
+  // Xử lý Đăng nhập
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
+    if (!loginEmail || !loginPassword) return toast.error("Vui lòng nhập đủ thông tin");
 
-    const { error } = await signIn({ email, password });
-    
+    setLoading(true);
+    const { error } = await signIn({ email: loginEmail, password: loginPassword });
+    setLoading(false);
+
     if (error) {
-      if (error.message.includes("Invalid login credentials") || error.message.includes("Sai email")) {
-        toast.error("Email hoặc mật khẩu không đúng. Vui lòng kiểm tra lại.");
-      } else {
-        toast.error(error.message || "Đăng nhập thất bại");
-      }
-      setLoading(false);
+      toast.error("Đăng nhập thất bại", { description: error.message });
     } else {
       toast.success("Đăng nhập thành công!");
-      setTimeout(() => {
-        navigate("/dashboard");
-      }, 500);
+      navigate("/dashboard");
     }
   };
 
-  const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
+  // Xử lý Đăng ký
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
-    const name = formData.get("name") as string;
-    const studentId = formData.get("studentId") as string;
+    // 1. Kiểm tra điền đủ
+    if (!fullName || !studentId || !regEmail || !regPassword || !confirmPassword) {
+      return toast.error("Vui lòng điền đầy đủ thông tin");
+    }
 
+    // 2. Kiểm tra mật khẩu trùng khớp (QUAN TRỌNG)
+    if (regPassword !== confirmPassword) {
+      return toast.error("Mật khẩu xác nhận không khớp!", {
+        description: "Vui lòng kiểm tra lại mật khẩu bạn vừa nhập."
+      });
+    }
+
+    // 3. Gửi lên server
+    setLoading(true);
     const { error } = await signUp({ 
-      email, 
-      password, 
-      fullName: name, 
+      email: regEmail, 
+      password: regPassword, 
+      fullName, 
       studentId 
     });
-    
+    setLoading(false);
+
     if (error) {
-      if (error.message.includes("already registered") || error.message.includes("tồn tại")) {
-        toast.error("Email này đã được đăng ký. Vui lòng đăng nhập.");
-      } else {
-        toast.error(error.message || "Đăng ký thất bại");
-      }
-      setLoading(false);
+      toast.error("Đăng ký thất bại", { description: error.message });
     } else {
-      toast.success("Đăng ký thành công! Đang chuyển sang đăng nhập...");
-      setTimeout(() => {
-        navigate("/dashboard");
-      }, 1000);
+      toast.success("Đăng ký thành công!", { description: "Vui lòng đăng nhập ngay." });
+      // Tự động chuyển sang tab Đăng nhập (hoặc reload trang)
+      window.location.reload(); 
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-accent/5 flex items-center justify-center p-4">
-      <div className="w-full max-w-md animate-scale-in">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="mb-4"
-          onClick={() => navigate("/")}
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Quay lại
-        </Button>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-4 transition-colors duration-300">
+      <div className="w-full max-w-md space-y-8 animate-fade-in">
+        
+        {/* Logo & Title */}
+        <div className="text-center space-y-2">
+          <div className="bg-blue-600 w-12 h-12 rounded-xl flex items-center justify-center mx-auto shadow-lg shadow-blue-200 dark:shadow-none">
+            <Calendar className="text-white w-6 h-6" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">UIT Booking System</h1>
+          <p className="text-muted-foreground">Hệ thống đặt phòng dành cho sinh viên UIT</p>
+        </div>
 
-        <Card className="shadow-xl border-border/50">
-          <CardHeader className="text-center space-y-4 pb-8">
-            <div className="mx-auto h-16 w-16 rounded-2xl bg-primary flex items-center justify-center">
-              <Calendar className="h-8 w-8 text-primary-foreground" />
-            </div>
-            <div>
-              <CardTitle className="text-2xl font-bold">UIT Booking System</CardTitle>
-              <CardDescription className="text-base mt-2">
-                Hệ thống đặt phòng dành cho sinh viên UIT
-              </CardDescription>
-            </div>
-          </CardHeader>
+        {/* Auth Forms */}
+        <Tabs defaultValue="login" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="login">Đăng nhập</TabsTrigger>
+            <TabsTrigger value="register">Đăng ký</TabsTrigger>
+          </TabsList>
 
-          <CardContent>
-            <Tabs defaultValue="login" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="login">Đăng nhập</TabsTrigger>
-                <TabsTrigger value="register">Đăng ký</TabsTrigger>
-              </TabsList>
-
-              {/* --- FORM ĐĂNG NHẬP --- */}
-              <TabsContent value="login">
+          {/* --- FORM ĐĂNG NHẬP --- */}
+          <TabsContent value="login">
+            <Card>
+              <CardHeader>
+                <CardTitle>Đăng nhập</CardTitle>
+                <CardDescription>Nhập email và mật khẩu của bạn để tiếp tục</CardDescription>
+              </CardHeader>
+              <CardContent>
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="login-email">Email UIT</Label>
-                    <Input
-                      id="login-email"
-                      name="email"
-                      type="email"
-                      placeholder="mssv@gm.uit.edu.vn"
-                      required
-                      className="h-11"
+                    <Label htmlFor="email">Email UIT</Label>
+                    <Input 
+                      id="email" 
+                      type="email" 
+                      placeholder="mssv@gm.uit.edu.vn" 
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password">Mật khẩu</Label>
+                      <span className="text-xs text-blue-600 cursor-pointer hover:underline">Quên mật khẩu?</span>
+                    </div>
+                    <Input 
+                      id="password" 
+                      type="password" 
+                      placeholder="••••••••" 
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                    />
+                  </div>
+                  <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={loading}>
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : null}
+                    Đăng nhập
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* --- FORM ĐĂNG KÝ (CÓ XÁC NHẬN MẬT KHẨU) --- */}
+          <TabsContent value="register">
+            <Card>
+              <CardHeader>
+                <CardTitle>Tạo tài khoản mới</CardTitle>
+                <CardDescription>Điền thông tin để đăng ký thành viên</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleRegister} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Họ và tên</Label>
+                    <Input 
+                      placeholder="Nguyễn Văn A" 
+                      value={fullName} onChange={(e) => setFullName(e.target.value)} 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>MSSV</Label>
+                    <Input 
+                      placeholder="2152xxxx" 
+                      value={studentId} onChange={(e) => setStudentId(e.target.value)} 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Email UIT</Label>
+                    <Input 
+                      type="email" placeholder="mssv@gm.uit.edu.vn" 
+                      value={regEmail} onChange={(e) => setRegEmail(e.target.value)} 
                     />
                   </div>
                   
-                  {/* 👇 ĐOẠN ĐƯỢC THÊM NÚT QUÊN MẬT KHẨU 👇 */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="login-password">Mật khẩu</Label>
-                      <Button 
-                        type="button" 
-                        variant="link" 
-                        className="px-0 text-xs text-blue-600 hover:text-blue-800 h-auto font-normal"
-                        onClick={() => window.location.href = "https://auth.uit.edu.vn/"}
-                      >
-                        Quên mật khẩu?
-                      </Button>
+                  {/* Mật khẩu & Xác nhận */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label>Mật khẩu</Label>
+                        <Input 
+                        type="password" placeholder="••••••••" 
+                        value={regPassword} onChange={(e) => setRegPassword(e.target.value)} 
+                        />
                     </div>
-                    <Input
-                      id="login-password"
-                      name="password"
-                      type="password"
-                      placeholder="••••••••"
-                      required
-                      className="h-11"
-                    />
+                    <div className="space-y-2">
+                        <Label>Xác nhận mật khẩu</Label>
+                        <Input 
+                        type="password" placeholder="••••••••" 
+                        value={confirmPassword} 
+                        onChange={(e) => setConfirmPassword(e.target.value)} 
+                        className={confirmPassword && regPassword !== confirmPassword ? "border-red-500 focus-visible:ring-red-500" : ""}
+                        />
+                    </div>
                   </div>
-                  {/* 👆 HẾT ĐOẠN THÊM 👆 */}
+                  {confirmPassword && regPassword !== confirmPassword && (
+                    <p className="text-xs text-red-500">Mật khẩu không khớp!</p>
+                  )}
 
-                  <Button type="submit" className="w-full h-11" disabled={loading}>
-                    {loading ? "Đang đăng nhập..." : "Đăng nhập"}
+                  <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={loading}>
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : null}
+                    Đăng ký
                   </Button>
                 </form>
-              </TabsContent>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
-              {/* --- FORM ĐĂNG KÝ --- */}
-              <TabsContent value="register">
-                <form onSubmit={handleRegister} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="register-name">Họ và tên</Label>
-                    <Input
-                      id="register-name"
-                      name="name"
-                      type="text"
-                      placeholder="Nguyễn Văn A"
-                      required
-                      className="h-11"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="register-studentId">MSSV</Label>
-                    <Input
-                      id="register-studentId"
-                      name="studentId"
-                      type="text"
-                      placeholder="21520000"
-                      className="h-11"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="register-email">Email UIT</Label>
-                    <Input
-                      id="register-email"
-                      name="email"
-                      type="email"
-                      placeholder="mssv@gm.uit.edu.vn"
-                      required
-                      className="h-11"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="register-password">Mật khẩu</Label>
-                    <Input
-                      id="register-password"
-                      name="password"
-                      type="password"
-                      placeholder="••••••••"
-                      required
-                      minLength={6}
-                      className="h-11"
-                    />
-                  </div>
-                  <Button type="submit" className="w-full h-11" disabled={loading}>
-                    {loading ? "Đang đăng ký..." : "Đăng ký"}
-                  </Button>
-                </form>
-              </TabsContent>
-            </Tabs>
-
-            <div className="mt-6 text-center text-sm text-muted-foreground">
-              <p>Dành cho sinh viên UIT với email @gm.uit.edu.vn</p>
-            </div>
-          </CardContent>
-        </Card>
+        <p className="text-center text-xs text-muted-foreground">
+          Dành cho sinh viên UIT với email @gm.uit.edu.vn
+        </p>
       </div>
     </div>
   );
-};
-
-export default Auth;
+}
