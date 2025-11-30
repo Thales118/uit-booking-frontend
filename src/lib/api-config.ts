@@ -1,8 +1,8 @@
 // src/lib/api-config.ts
 
-// Kiểm tra xem đang ở chế độ nào (Dev hay Production)
-// Nếu là Production (trên AWS) -> Dùng chuỗi rỗng "" (để Nginx tự lo)
-// Nếu là Dev (máy bạn) -> Dùng localhost:5000
+// Tự động chuyển đổi:
+// - Khi chạy dưới máy bạn (npm run dev) -> http://localhost:5000
+// - Khi build lên AWS (npm run build) -> "" (dùng đường dẫn tương đối, Nginx sẽ tự lo phần còn lại)
 export const API_BASE_URL = import.meta.env.PROD ? "" : "http://localhost:5000";
 
 export const api = async (endpoint: string, options: RequestInit = {}) => {
@@ -12,9 +12,9 @@ export const api = async (endpoint: string, options: RequestInit = {}) => {
     'Content-Type': 'application/json',
     ...(token && { 'Authorization': `Bearer ${token}` }),
     ...options.headers,
-  };
+  } as HeadersInit; // Ép kiểu cho chắc chắn
 
-  // Nó sẽ tự nối: "" + "/api/bookings" -> thành đường dẫn tương đối
+  // Tự động nối URL
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
     headers,

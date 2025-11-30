@@ -9,7 +9,8 @@ import { Calendar as CalendarIcon, MapPin, Users, Clock, ArrowLeft } from "lucid
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { useAuth } from "@/hooks/useAuth"; // Import hook auth mới
+import { useAuth } from "@/hooks/useAuth";
+import { api } from "@/lib/api-config"; // <--- Import hàm api đã cấu hình
 
 interface Room {
   id: string;
@@ -20,7 +21,7 @@ interface Room {
 
 const Booking = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user } = useAuth(); // Biến user này có thể dùng để check đăng nhập
   const [date, setDate] = useState<Date>();
   const [selectedRoom, setSelectedRoom] = useState("");
   const [selectedSlot, setSelectedSlot] = useState("");
@@ -41,14 +42,9 @@ const Booking = () => {
   useEffect(() => {
     const fetchRooms = async () => {
       try {
-        // GỌI API TỪ BACKEND NODE.JS
-        const response = await fetch("http://localhost:5000/api/rooms");
-        
-        if (!response.ok) {
-          throw new Error("Không thể kết nối đến server");
-        }
-
-        const data = await response.json();
+        // Dùng hàm api() thay vì fetch thủ công
+        // Nó tự động nối localhost hoặc IP server tùy môi trường
+        const data = await api("/api/rooms");
         setRooms(data || []);
       } catch (error: any) {
         toast.error("Không thể tải danh sách phòng", {
@@ -70,7 +66,7 @@ const Booking = () => {
       return;
     }
 
-    // Lấy token từ LocalStorage
+    // Kiểm tra login (có thể dùng user từ useAuth hoặc check token)
     const token = localStorage.getItem('token');
     if (!token) {
       toast.error("Vui lòng đăng nhập lại");
@@ -84,13 +80,10 @@ const Booking = () => {
       const slot = timeSlots.find(s => s.id === selectedSlot);
       if (!slot) throw new Error("Khung giờ không hợp lệ");
 
-      // GỌI API BACKEND NODE.JS ĐỂ ĐẶT PHÒNG
-      const response = await fetch("http://localhost:5000/api/bookings", {
+      // Dùng hàm api() để POST
+      // Không cần tự thêm header Authorization vì hàm api() đã làm rồi
+      await api("/api/bookings", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}` // Gửi kèm token xác thực
-        },
         body: JSON.stringify({
           room_id: selectedRoom,
           booking_date: format(date, "yyyy-MM-dd"),
@@ -100,12 +93,6 @@ const Booking = () => {
           notes: note || ""
         })
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Đặt phòng thất bại");
-      }
 
       toast.success("Đặt phòng thành công!", {
         description: "Yêu cầu của bạn đang chờ admin phê duyệt",
@@ -135,7 +122,6 @@ const Booking = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary/5 to-background">
-      {/* Header */}
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
@@ -152,7 +138,6 @@ const Booking = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Room Selection */}
           <Card className="animate-slide-up">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -191,7 +176,6 @@ const Booking = () => {
             </CardContent>
           </Card>
 
-          {/* Date & Time Selection */}
           <Card className="animate-slide-up" style={{ animationDelay: "100ms" }}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -231,8 +215,8 @@ const Booking = () => {
                       onClick={() => setSelectedSlot(slot.id)}
                       className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
                         selectedSlot === slot.id
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:border-primary/50"
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-primary/50"
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -248,7 +232,6 @@ const Booking = () => {
             </CardContent>
           </Card>
 
-          {/* Purpose and Note */}
           <Card className="animate-slide-up" style={{ animationDelay: "200ms" }}>
             <CardContent className="pt-6 space-y-4">
               <div className="space-y-2">
@@ -275,7 +258,6 @@ const Booking = () => {
             </CardContent>
           </Card>
 
-          {/* Submit */}
           <div className="flex gap-4">
             <Button type="button" variant="outline" onClick={() => navigate("/dashboard")} className="flex-1">
               Hủy
