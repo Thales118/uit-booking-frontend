@@ -12,9 +12,9 @@ export const api = async (endpoint: string, options: RequestInit = {}) => {
     'Content-Type': 'application/json',
     ...(token && { 'Authorization': `Bearer ${token}` }),
     ...options.headers,
-  } as HeadersInit; // Ép kiểu cho chắc chắn
+  } as HeadersInit;
 
-  // Tự động nối URL
+  // Tự động nối URL: localhost hoặc đường dẫn tương đối
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
     headers,
